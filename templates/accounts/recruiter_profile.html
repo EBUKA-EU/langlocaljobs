@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Company Profile - LangLocalJobs{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0"><i class="bi bi-building"></i> Company Profile</h3>
+                </div>
+                <div class="card-body p-4">
+                    {% if company.logo %}
+                    <div class="mb-3 text-center">
+                        <img src="{{ company.logo.url }}" alt="{{ company.name }} logo" class="img-thumbnail" style="max-width: 150px;">
+                    </div>
+                    {% endif %}
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        {% for field in form %}
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}
+                            <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% if field.errors %}
+                            <div class="text-danger small mt-1">{{ field.errors }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="submit" class="btn btn-primary px-4">Save Company Profile</button>
+                            <a href="{% url 'jobs:dashboard' %}" class="btn btn-outline-secondary">Go to Dashboard</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    input[type="text"], input[type="url"], input[type="file"], textarea {
+        width: 100%; padding: .375rem .75rem; border: 1px solid #ced4da; border-radius: .375rem; font-size: 1rem;
+    }
+    input:focus, textarea:focus { border-color: #0d6efd; outline: none; box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); }
+</style>
+{% endblock %}

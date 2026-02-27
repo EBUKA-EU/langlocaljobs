@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}My Profile - LangLocalJobs{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0"><i class="bi bi-person-circle"></i> My Profile</h3>
+                </div>
+                <div class="card-body p-4">
+                    {% if profile.resume %}
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-file-earmark-text"></i> Current resume:
+                        <a href="{{ profile.resume.url }}" target="_blank">{{ profile.resume.name|slice:"8:" }}</a>
+                    </div>
+                    {% endif %}
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        {% for field in form %}
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}
+                            <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% if field.errors %}
+                            <div class="text-danger small mt-1">{{ field.errors }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        <button type="submit" class="btn btn-primary px-4">Save Profile</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    input[type="text"], input[type="url"], input[type="file"], textarea {
+        width: 100%; padding: .375rem .75rem; border: 1px solid #ced4da; border-radius: .375rem; font-size: 1rem;
+    }
+    input:focus, textarea:focus { border-color: #0d6efd; outline: none; box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); }
+</style>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Saved Jobs - LangLocalJobs{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <h2 class="mb-4"><i class="bi bi-bookmark-heart"></i> Saved Jobs</h2>
+
+    {% if saved_jobs %}
+    <div class="d-flex flex-column gap-3">
+        {% for saved in saved_jobs %}
+        <div class="card job-card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h5 class="card-title mb-1">
+                            <a href="{% url 'jobs:job_detail' saved.job.pk %}" class="text-decoration-none text-dark">{{ saved.job.title }}</a>
+                        </h5>
+                        {% if saved.job.company %}
+                        <p class="text-muted mb-1"><i class="bi bi-building"></i> {{ saved.job.company.name }}</p>
+                        {% endif %}
+                        <p class="text-muted small mb-2"><i class="bi bi-geo-alt"></i> {{ saved.job.location }}</p>
+                        <div>
+                            <span class="badge badge-category me-1">{{ saved.job.get_category_display }}</span>
+                            <span class="badge badge-type me-1">{{ saved.job.get_job_type_display }}</span>
+                        </div>
+                    </div>
+                    <div class="text-end ms-3">
+                        <small class="text-muted d-block mb-2">Saved {{ saved.saved_at|date:"M d, Y" }}</small>
+                        <a href="{% url 'jobs:job_detail' saved.job.pk %}" class="btn btn-outline-primary btn-sm mb-1">View Job</a>
+                        <form method="post" action="{% url 'jobs:save_job' saved.job.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-warning btn-sm">
+                                <i class="bi bi-bookmark-x"></i> Remove
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% if saved.job.salary_min or saved.job.salary_max %}
+                <p class="text-success small mt-2 mb-0">
+                    <i class="bi bi-currency-dollar"></i>
+                    {% if saved.job.salary_min and saved.job.salary_max %}${{ saved.job.salary_min }} - ${{ saved.job.salary_max }}
+                    {% elif saved.job.salary_min %}From ${{ saved.job.salary_min }}
+                    {% else %}Up to ${{ saved.job.salary_max }}{% endif %}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-bookmark fs-1 text-muted"></i>
+        <p class="mt-3 text-muted fs-5">You haven't saved any jobs yet.</p>
+        <a href="{% url 'jobs:job_list' %}" class="btn btn-primary btn-lg mt-2">Browse Jobs</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

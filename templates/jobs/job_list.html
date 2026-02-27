@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Find Jobs - LangLocalJobs{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <!-- Filters Sidebar -->
+        <div class="col-lg-3 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-funnel"></i> Filter Jobs</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" action="{% url 'jobs:job_list' %}">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Keywords</label>
+                            {{ form.q }}
+                            {% if form.q.errors %}
+                            <div class="text-danger small">{{ form.q.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Category</label>
+                            {{ form.category }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Job Type</label>
+                            {{ form.job_type }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Location</label>
+                            {{ form.location }}
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
+                        <a href="{% url 'jobs:job_list' %}" class="btn btn-outline-secondary w-100 mt-2">Clear</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Job Listings -->
+        <div class="col-lg-9">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">
+                    {% if jobs %}{{ jobs|length }} job(s) found{% else %}No jobs found{% endif %}
+                </h4>
+                {% if user.is_authenticated and user.user_type == 'recruiter' %}
+                <a href="{% url 'jobs:post_job' %}" class="btn btn-success"><i class="bi bi-plus-circle"></i> Post a Job</a>
+                {% endif %}
+            </div>
+
+            {% if jobs %}
+            <div class="d-flex flex-column gap-3">
+                {% for job in jobs %}
+                <div class="card job-card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h5 class="card-title mb-1">
+                                    <a href="{% url 'jobs:job_detail' job.pk %}" class="text-decoration-none text-dark">{{ job.title }}</a>
+                                </h5>
+                                {% if job.company %}
+                                <p class="text-muted mb-1"><i class="bi bi-building"></i> {{ job.company.name }}</p>
+                                {% endif %}
+                                <p class="text-muted small mb-2"><i class="bi bi-geo-alt"></i> {{ job.location }}</p>
+                                <div>
+                                    <span class="badge badge-category me-1">{{ job.get_category_display }}</span>
+                                    <span class="badge badge-type me-1">{{ job.get_job_type_display }}</span>
+                                    {% if job.is_scraped %}<span class="badge bg-secondary">External</span>{% endif %}
+                                </div>
+                            </div>
+                            <div class="text-end ms-3">
+                                {% if job.salary_min or job.salary_max %}
+                                <p class="text-success fw-semibold mb-1">
+                                    {% if job.salary_min and job.salary_max %}${{ job.salary_min }} - ${{ job.salary_max }}
+                                    {% elif job.salary_min %}From ${{ job.salary_min }}
+                                    {% else %}Up to ${{ job.salary_max }}{% endif %}
+                                </p>
+                                {% endif %}
+                                <p class="text-muted small mb-2">{{ job.created_at|date:"M d, Y" }}</p>
+                                <a href="{% url 'jobs:job_detail' job.pk %}" class="btn btn-outline-primary btn-sm">View Details</a>
+                            </div>
+                        </div>
+                        {% if job.skills_required %}
+                        <div class="mt-2">
+                            <small class="text-muted"><i class="bi bi-tools"></i> {{ job.skills_required }}</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-search fs-1 text-muted"></i>
+                <p class="mt-3 text-muted fs-5">No jobs match your search criteria.</p>
+                <a href="{% url 'jobs:job_list' %}" class="btn btn-primary mt-2">Clear Filters</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    select.form-select, input.form-control { border-radius: 6px; }
+    #id_q, #id_category, #id_job_type, #id_location { width: 100%; padding: .375rem .75rem; border: 1px solid #ced4da; border-radius: .375rem; }
+</style>
+{% endblock %}

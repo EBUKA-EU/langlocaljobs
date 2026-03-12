@@ -9,6 +9,11 @@ from flask import Flask  # Flask web framework
 from flask_cors import CORS  # Cross-Origin Resource Sharing for APIs
 from app.config import Config  # App configuration settings
 from app.extension import db, migrate  # Database and migration extensions
+import app.models
+from app.routes.jobs import jobs_bp
+from app.routes.users import users_bp
+from app.routes.auth import auth_bp
+from app.routes.recruiters import recruiters_bp
 
 
 def create_app():
@@ -27,5 +32,10 @@ def create_app():
     def health():
         """Health check endpoint to verify backend is running."""
         return {"status": "Backend healthy"}
+
+    app.register_blueprint(jobs_bp)
+    app.register_blueprint(users_bp)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(recruiters_bp)
 
     return app

@@ -79,6 +79,51 @@ langlocaljobs/
     black .
     ```
 
+## Week 2 API Endpoints
+
+Base URL (local): `http://127.0.0.1:5000`
+
+- **Health**
+    - `GET /api/health`
+
+- **Jobs**
+    - `GET /api/jobs` — list scraped jobs
+
+- **Users**
+    - `GET /api/users` — list users
+
+- **Authentication**
+    - `POST /api/auth/register` — register a user
+        - JSON body example:
+            ```json
+            {
+                "email": "user@example.com",
+                "password": "pass1234",
+                "name": "User Name",
+                "is_recruiter": false
+            }
+            ```
+    - `POST /api/auth/login` — login with email and password
+        - JSON body example:
+            ```json
+            {
+                "email": "user@example.com",
+                "password": "pass1234"
+            }
+            ```
+
+- **Recruiters**
+    - `GET /api/recruiters` — list recruiter profiles
+    - `POST /api/recruiters` — create recruiter profile for an existing user
+        - JSON body example:
+            ```json
+            {
+                "user_id": 1,
+                "company_name": "LangLocal Recruiters",
+                "website": "https://example.com"
+            }
+            ```
+
 ## Key Files and Folders
 
 - `backend/run.py`: Main entrypoint to start the Flask server.

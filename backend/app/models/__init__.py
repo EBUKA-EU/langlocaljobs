@@ -1,10 +1,25 @@
 
+# Profile model: one-to-one with User
+from datetime import datetime
+from app.extension import db
+
+
+class Profile(db.Model):
+    __tablename__ = 'profiles'
+    id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
+    name = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Allowed roles: user, recruiter, admin
+    role = db.Column(db.String(50), default='user')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           onupdate=datetime.utcnow)
+    # Add more profile fields as needed (bio, avatar, etc.)
+    user = db.relationship('User', backref=db.backref('profile', uselist=False))
+
+
 # models/__init__.py
 #
 # Defines SQLAlchemy models for User, Recruiter, Job, and SavedJob.
-
-from app.extension import db
-from datetime import datetime
 
 
 class User(db.Model):
@@ -12,8 +27,6 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
-    name = db.Column(db.String(100))
-    is_recruiter = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     saved_jobs = db.relationship(
         'SavedJob', back_populates='user', cascade='all, delete-orphan')

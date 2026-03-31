@@ -120,6 +120,97 @@ def _scrape_translatorscafe_listing(source_name, listing_url):
     }
 
 
+def _scrape_arbeitnow_api(source_name, api_url):
+    """Scrape jobs from Arbeitnow free public API."""
+    try:
+        response = requests.get(
+            api_url, timeout=REQUEST_TIMEOUT_SECONDS, headers=REQUEST_HEADERS)
+        response.raise_for_status()
+        data = response.json()
+        jobs_raw = data.get("data", [])
+    except Exception as exc:
+        return [], {
+            "source": source_name,
+            "fetched": 0,
+            "valid": 0,
+            "invalid": 0,
+            "error": str(exc),
+        }
+
+    jobs = []
+    skipped_invalid = 0
+    for job in jobs_raw:
+        description = _safe_text(job.get("description")) or _safe_text(job.get("title"))
+        job_payload = {
+            "title": _safe_text(job.get("title")),
+            "company": _safe_text(job.get("company_name")),
+            "location": _safe_text(job.get("location")) or "Remote",
+            "description": description,
+            "url": _safe_text(job.get("url")),
+            "posted_at": datetime.utcnow(),
+        }
+        if not _is_valid_job_payload(job_payload):
+            skipped_invalid += 1
+            continue
+        jobs.append(job_payload)
+
+    return jobs, {
+        "source": source_name,
+        "fetched": len(jobs_raw),
+        "valid": len(jobs),
+        "invalid": skipped_invalid,
+        "error": None,
+    }
+
+
+def _scrape_themuse_api(source_name, api_url):
+    """Scrape jobs from The Muse free public API."""
+    try:
+        response = requests.get(
+            api_url, timeout=REQUEST_TIMEOUT_SECONDS, headers=REQUEST_HEADERS)
+        response.raise_for_status()
+        data = response.json()
+        jobs_raw = data.get("results", [])
+    except Exception as exc:
+        return [], {
+            "source": source_name,
+            "fetched": 0,
+            "valid": 0,
+            "invalid": 0,
+            "error": str(exc),
+        }
+
+    jobs = []
+    skipped_invalid = 0
+    for job in jobs_raw:
+        company = job.get("company", {}).get("name", "")
+        locations = job.get("locations", [])
+        location = ", ".join(loc.get("name", "")
+                             for loc in locations) if locations else "Remote"
+        contents = _safe_text(job.get("contents")) or _safe_text(job.get("name"))
+        job_url = _safe_text(job.get("refs", {}).get("landing_page"))
+        job_payload = {
+            "title": _safe_text(job.get("name")),
+            "company": _safe_text(company),
+            "location": location,
+            "description": contents,
+            "url": job_url,
+            "posted_at": datetime.utcnow(),
+        }
+        if not _is_valid_job_payload(job_payload):
+            skipped_invalid += 1
+            continue
+        jobs.append(job_payload)
+
+    return jobs, {
+        "source": source_name,
+        "fetched": len(jobs_raw),
+        "valid": len(jobs),
+        "invalid": skipped_invalid,
+        "error": None,
+    }
+
+
 def scrape_jobs_from_sources():
     """
     Scrape jobs from multiple HTML sources.
@@ -140,6 +231,17 @@ def scrape_jobs_from_sources():
             "name": "remotive-software",
             "url": "https://remotive.com/api/remote-jobs?category=software-dev",
             "type": "api",
+            "handler": "_scrape_remotive_api",
+        },
+        {
+            "name": "arbeitnow",
+            "url": "https://www.arbeitnow.com/api/job-board-api",
+            "type": "arbeitnow",
+        },
+        {
+            "name": "themuse",
+            "url": "https://www.themuse.com/api/public/jobs?page=1&per_page=100",
+            "type": "themuse",
         },
     ]
 
@@ -162,6 +264,14 @@ def scrape_jobs_from_sources():
                 )
             elif config["type"] == "api":
                 jobs, stat = _scrape_remotive_api(config["name"], config["url"])
+                all_jobs.extend(jobs)
+                source_stats.append(stat)
+            elif config["type"] == "arbeitnow":
+                jobs, stat = _scrape_arbeitnow_api(config["name"], config["url"])
+                all_jobs.extend(jobs)
+                source_stats.append(stat)
+            elif config["type"] == "themuse":
+                jobs, stat = _scrape_themuse_api(config["name"], config["url"])
                 all_jobs.extend(jobs)
                 source_stats.append(stat)
         except Exception as exc:
@@ -199,13 +309,22 @@ def _scrape_remotive_api(source_name, api_url):
     jobs = []
     skipped_invalid = 0
     for job in jobs_raw:
+        pub_date = job.get("publication_date")
+        posted_at = datetime.utcnow()
+        if pub_date:
+            for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
+                try:
+                    posted_at = datetime.strptime(pub_date, fmt)
+                    break
+                except ValueError:
+                    continue
         job_payload = {
             "title": _safe_text(job.get("title")),
             "company": _safe_text(job.get("company_name")),
             "location": _safe_text(job.get("candidate_required_location")),
             "description": _safe_text(job.get("description")),
             "url": _safe_text(job.get("url")),
-            "posted_at": datetime.strptime(job.get("publication_date", ""), "%Y-%m-%dT%H:%M:%S%z") if job.get("publication_date") else datetime.utcnow(),
+            "posted_at": posted_at,
         }
         if not _is_valid_job_payload(job_payload):
             skipped_invalid += 1

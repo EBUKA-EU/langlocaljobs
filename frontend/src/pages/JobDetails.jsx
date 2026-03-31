@@ -83,7 +83,14 @@ function JobDetails({
                 {job.company} &middot; {job.location}
             </div>
             <div className="mb-4">
-                {job.description || "No description provided."}
+                {job.description ? (
+                    <div
+                        className="text-gray-700 text-sm leading-relaxed job-description"
+                        dangerouslySetInnerHTML={{ __html: job.description }}
+                    />
+                ) : (
+                    <p className="text-gray-600">No description provided.</p>
+                )}
             </div>
             <a
                 href={job.url}

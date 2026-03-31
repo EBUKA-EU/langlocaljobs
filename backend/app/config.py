@@ -4,6 +4,9 @@
 # These settings are loaded into the app in app/__init__.py.
 
 import os  # Used to access environment variables
+from dotenv import load_dotenv  # Loads environment variables from .env file
+
+load_dotenv()  # Load .env from the current working directory
 
 
 class Config:

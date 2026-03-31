@@ -25,6 +25,14 @@ function NavBar({ user, onLogout }) {
                 {!user && <Link to="/login">Login</Link>}
                 {!user && <Link to="/register">Register</Link>}
                 {user && <Link to="/dashboard">Dashboard</Link>}
+                {user && user.role === "admin" && (
+                    <Link
+                        to="/admin"
+                        className="bg-yellow-400 text-gray-900 px-3 py-1 rounded font-semibold hover:bg-yellow-500"
+                    >
+                        Admin
+                    </Link>
+                )}
                 {user && (
                     <button
                         onClick={() => {

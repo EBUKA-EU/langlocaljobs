@@ -24,6 +24,7 @@ def register():
     now = datetime.utcnow()
     user = User(
         email=email,
+        name=name,
         password_hash=generate_password_hash(password),
         created_at=now
     )
@@ -33,6 +34,7 @@ def register():
         id=user.id,
         name=name,
         role='user',
+        created_at=now,
         updated_at=now
     )
     db.session.add(profile)
@@ -48,13 +50,9 @@ def register():
         "user": {
             "id": user.id,
             "email": user.email,
+            "name": user.name,
             "created_at": iso_utc(user.created_at),
-            "profile": {
-                "id": profile.id,
-                "name": profile.name,
-                "role": profile.role,
-                "updated_at": iso_utc(profile.updated_at),
-            },
+            "role": profile.role,
         },
     }, 201
 
@@ -72,19 +70,18 @@ def login():
     if not user or not check_password_hash(user.password_hash, password):
         return {"error": "invalid credentials"}, 401
 
-    # Update last_logged_in using direct SQL for debugging
     now = datetime.utcnow()
-    db.session.execute(
-        db.text('UPDATE users SET last_logged_in = :now WHERE id = :user_id'),
-        {'now': now, 'user_id': user.id}
-    )
-    db.session.commit()
     user.last_logged_in = now
+    db.session.commit()
 
-    # Generate JWT token (customize claims as needed)
+    profile = getattr(user, "profile", None)
+    role = profile.role if profile else "user"
+
+    # JWT encodes role as single source of truth
     token = jwt.encode(
         {
             "user_id": user.id,
+            "role": role,
             "exp": datetime.utcnow() + timedelta(hours=24)
         },
         current_app.config["SECRET_KEY"],
@@ -96,20 +93,14 @@ def login():
             return None
         return dt.replace(microsecond=0).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    # Fetch profile for name
-    profile = getattr(user, "profile", None)
     return {
         "message": "login successful",
         "user": {
             "id": user.id,
             "email": user.email,
+            "name": user.name,
+            "role": role,
             "last_logged_in": iso_utc(user.last_logged_in),
-            "profile": {
-                "id": profile.id if profile else None,
-                "name": profile.name if profile else None,
-                "role": profile.role if profile else None,
-                "updated_at": iso_utc(profile.updated_at) if profile and profile.updated_at else None,
-            } if profile else None,
         },
         "token": token,
     }, 200

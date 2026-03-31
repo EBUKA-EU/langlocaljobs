@@ -16,7 +16,8 @@ def login_required(f):
             payload = jwt.decode(
                 token, current_app.config["SECRET_KEY"], algorithms=["HS256"])
             request.user_id = payload.get("user_id")
-            request.is_admin = payload.get("is_admin", False)
+            request.role = payload.get("role", "user")
+            request.is_admin = request.role == "admin"
         except Exception:
             return {"error": "Invalid or expired token. Please log in again."}, 401
         return f(*args, **kwargs)
@@ -38,7 +39,7 @@ def admin_required(f):
         try:
             payload = jwt.decode(
                 token, current_app.config["SECRET_KEY"], algorithms=["HS256"])
-            if not payload.get("is_admin"):
+            if payload.get("role") != "admin":
                 return {"error": "Admin access required."}, 403
         except Exception:
             return {"error": "Invalid or expired token."}, 401

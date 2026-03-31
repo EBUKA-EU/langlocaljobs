@@ -1,6 +1,6 @@
 
 from flask import Blueprint, request, current_app
-from app.models import User
+from app.models import User, Profile
 import jwt
 from functools import wraps
 
@@ -20,44 +20,12 @@ def login_required(f):
             payload = jwt.decode(
                 token, current_app.config["SECRET_KEY"], algorithms=["HS256"])
             request.user_id = payload.get("user_id")
-            request.is_admin = payload.get("is_admin", False)
+            request.role = payload.get("role", "user")
+            request.is_admin = request.role == "admin"
         except Exception:
             return {"error": "Invalid or expired token. Please log in again."}, 401
         return f(*args, **kwargs)
     return decorated
-
-# PATCH endpoint for users to update their own details or for admin to update any user
-
-
-@users_bp.patch("/api/users/<int:user_id>")
-@login_required
-def update_user(user_id):
-    user = User.query.get(user_id)
-    if not user:
-        return {"error": "User not found"}, 404
-    data = request.get_json() or {}
-    # Only allow user to update their own details, unless admin
-    if not request.is_admin and request.user_id != user_id:
-        return {"error": "You can only update your own details."}, 403
-    allowed_fields = ["name"]
-    if request.is_admin:
-        allowed_fields += ["is_admin", "is_recruiter"]
-    updated = False
-    for field in allowed_fields:
-        if field in data:
-            setattr(user, field, data[field])
-            updated = True
-    # Allow password change (hash it)
-    if "password" in data and (request.is_admin or request.user_id == user_id):
-        from werkzeug.security import generate_password_hash
-        user.password_hash = generate_password_hash(data["password"])
-        updated = True
-    if updated:
-        from app.extension import db
-        db.session.commit()
-        return {"message": f"User {user_id} updated successfully."}
-    else:
-        return {"error": "No valid fields to update."}, 400
 
 
 # Admin authentication decorator
@@ -71,12 +39,68 @@ def admin_required(f):
         try:
             payload = jwt.decode(
                 token, current_app.config["SECRET_KEY"], algorithms=["HS256"])
-            if not payload.get("is_admin"):
+            if payload.get("role") != "admin":
                 return {"error": "Admin access required."}, 403
         except Exception:
             return {"error": "Invalid or expired token."}, 401
         return f(*args, **kwargs)
     return decorated
+
+
+# PATCH endpoint for users to update their own details or for admin to update any user
+@users_bp.patch("/api/users/<int:user_id>")
+@login_required
+def update_user(user_id):
+    from app.extension import db
+    user = User.query.get(user_id)
+    if not user:
+        return {"error": "User not found"}, 404
+    data = request.get_json() or {}
+    # Only allow user to update their own details, unless admin
+    if not request.is_admin and request.user_id != user_id:
+        return {"error": "You can only update your own details."}, 403
+
+    updated = False
+
+    # name lives on users
+    if "name" in data:
+        user.name = data["name"]
+        updated = True
+
+    # role is only settable by admins
+    if request.is_admin and "role" in data:
+        profile = user.profile
+        if profile:
+            profile.role = data["role"]
+            updated = True
+
+    # Allow password change
+    if "password" in data and (request.is_admin or request.user_id == user_id):
+        from werkzeug.security import generate_password_hash
+        user.password_hash = generate_password_hash(data["password"])
+        updated = True
+
+    if updated:
+        db.session.commit()
+        return {"message": f"User {user_id} updated successfully."}
+    else:
+        return {"error": "No valid fields to update."}, 400
+
+
+@users_bp.get("/api/users/me")
+@login_required
+def get_me():
+    user = User.query.get(request.user_id)
+    if not user:
+        return {"error": "User not found"}, 404
+    profile = user.profile
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": profile.role if profile else "user",
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
 
 
 @users_bp.get("/api/users")
@@ -88,8 +112,7 @@ def list_users():
             "id": user.id,
             "email": user.email,
             "name": user.name,
-            "is_recruiter": user.is_recruiter,
-            "is_admin": user.is_admin,
+            "role": user.profile.role if user.profile else "user",
             "created_at": user.created_at.isoformat() if user.created_at else None,
         }
         for user in users
@@ -107,7 +130,18 @@ def get_user(user_id):
         "id": user.id,
         "email": user.email,
         "name": user.name,
-        "is_recruiter": user.is_recruiter,
-        "is_admin": user.is_admin,
+        "role": user.profile.role if user.profile else "user",
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
+
+
+@users_bp.delete("/api/users/<int:user_id>")
+@admin_required
+def delete_user(user_id):
+    from app.extension import db
+    user = User.query.get(user_id)
+    if not user:
+        return {"error": "User not found"}, 404
+    db.session.delete(user)
+    db.session.commit()
+    return {"message": f"User {user_id} deleted successfully."}

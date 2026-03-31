@@ -1,9 +1,8 @@
-from app.models import Job
+from app.models import Job, SavedJob, AppliedJob
+from app.extension import db
 import jwt
 from functools import wraps
 from flask import Blueprint, request, current_app
-jobs_bp = Blueprint("jobs", __name__)
-
 jobs_bp = Blueprint("jobs", __name__)
 
 
@@ -19,7 +18,8 @@ def login_required(f):
             payload = jwt.decode(
                 token, current_app.config["SECRET_KEY"], algorithms=["HS256"])
             request.user_id = payload.get("user_id")
-            request.is_admin = payload.get("is_admin", False)
+            request.role = payload.get("role", "user")
+            request.is_admin = request.role == "admin"
         except Exception:
             return {"error": "Invalid or expired token. Please log in again."}, 401
         return f(*args, **kwargs)
@@ -37,17 +37,132 @@ def admin_required(f):
     return decorated
 
 
+@jobs_bp.get("/api/jobs/saved")
+@login_required
+def list_saved_jobs():
+    saved = SavedJob.query.filter_by(user_id=request.user_id).all()
+    return {
+        "saved_jobs": [
+            {
+                "id": s.job.id,
+                "title": s.job.title,
+                "company": s.job.company,
+                "location": s.job.location,
+                "url": s.job.url,
+                "saved_at": s.saved_at.isoformat() if s.saved_at else None,
+            }
+            for s in saved if s.job
+        ]
+    }
+
+
+@jobs_bp.post("/api/jobs/<int:job_id>/save")
+@login_required
+def save_job(job_id):
+    job = Job.query.get(job_id)
+    if not job:
+        return {"error": "Job not found"}, 404
+    existing = SavedJob.query.filter_by(user_id=request.user_id, job_id=job_id).first()
+    if existing:
+        return {"message": "Job already saved"}, 200
+    saved = SavedJob(user_id=request.user_id, job_id=job_id)
+    db.session.add(saved)
+    db.session.commit()
+    return {"message": "Job saved successfully"}, 201
+
+
+@jobs_bp.delete("/api/jobs/<int:job_id>/save")
+@login_required
+def unsave_job(job_id):
+    saved = SavedJob.query.filter_by(user_id=request.user_id, job_id=job_id).first()
+    if not saved:
+        return {"error": "Job not in saved list"}, 404
+    db.session.delete(saved)
+    db.session.commit()
+    return {"message": "Job removed from saved list"}
+
+
+@jobs_bp.get("/api/jobs/applied")
+@login_required
+def list_applied_jobs():
+    applied = AppliedJob.query.filter_by(user_id=request.user_id).all()
+    return {
+        "applied_jobs": [
+            {
+                "id": a.job.id,
+                "title": a.job.title,
+                "company": a.job.company,
+                "location": a.job.location,
+                "url": a.job.url,
+                "applied_at": a.applied_at.isoformat() if a.applied_at else None,
+            }
+            for a in applied if a.job
+        ]
+    }
+
+
+@jobs_bp.post("/api/jobs/<int:job_id>/apply")
+@login_required
+def mark_applied(job_id):
+    job = Job.query.get(job_id)
+    if not job:
+        return {"error": "Job not found"}, 404
+    existing = AppliedJob.query.filter_by(
+        user_id=request.user_id, job_id=job_id).first()
+    if existing:
+        return {"message": "Already marked as applied", "applied_at": existing.applied_at.isoformat()}, 200
+    applied = AppliedJob(user_id=request.user_id, job_id=job_id)
+    db.session.add(applied)
+    db.session.commit()
+    return {"message": "Marked as applied", "applied_at": applied.applied_at.isoformat()}, 201
+
+
+@jobs_bp.get("/api/admin/applied-jobs")
+@login_required
+@admin_required
+def admin_list_applied_jobs():
+    from app.models import User
+    rows = AppliedJob.query.order_by(AppliedJob.applied_at.desc()).all()
+    return {
+        "applied_jobs": [
+            {
+                "id": a.id,
+                "user_id": a.user_id,
+                "user_email": a.user.email if a.user else None,
+                "user_name": a.user.name if a.user else None,
+                "job_id": a.job_id,
+                "job_title": a.job.title if a.job else None,
+                "job_company": a.job.company if a.job else None,
+                "applied_at": a.applied_at.isoformat() if a.applied_at else None,
+            }
+            for a in rows
+        ],
+        "total": len(rows),
+    }
+
+
 @jobs_bp.get("/api/jobs")
 @login_required
 def list_jobs():
-    # Get pagination params from query string
     try:
         page = int(request.args.get("page", 1))
         per_page = int(request.args.get("per_page", 10))
     except ValueError:
         return {"error": "Invalid pagination parameters."}, 400
 
-    query = Job.query.order_by(Job.posted_at.desc())
+    search = (request.args.get("search") or "").strip()
+    location = (request.args.get("location") or "").strip()
+    company = (request.args.get("company") or "").strip()
+
+    query = Job.query
+    if search:
+        query = query.filter(Job.title.ilike(f"%{search}%"))
+    if location:
+        query = query.filter(Job.location.ilike(f"%{location}%"))
+    if company:
+        query = query.filter(Job.company.ilike(f"%{company}%"))
+
+    query = query.order_by(Job.posted_at.desc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     jobs = pagination.items
     total = pagination.total
@@ -88,7 +203,6 @@ def get_job(job_id):
         "description": job.description,
         "url": job.url,
         "posted_at": job.posted_at.isoformat() if job.posted_at else None,
-        "recruiter_id": job.recruiter_id,
     }
 
 

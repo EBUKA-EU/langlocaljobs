@@ -6,6 +6,7 @@ function JobDetails({
     user,
     onApply,
     onSave,
+    onUnsave,
     appliedJobs = [],
     savedJobs = [],
 }) {
@@ -57,6 +58,11 @@ function JobDetails({
     const handleSave = () => {
         setSavedJob(true);
         if (onSave && job) onSave(job);
+    };
+
+    const handleUnsave = () => {
+        setSavedJob(false);
+        if (onUnsave && job) onUnsave(job.id);
     };
 
     if (loading) return <div className="mt-8 text-center">Loading...</div>;
@@ -119,13 +125,21 @@ function JobDetails({
                     )}
                 </div>
                 <div>
-                    <button
-                        className={`px-4 py-2 rounded font-semibold ${savedJob ? "bg-yellow-500 text-white" : "bg-yellow-400 text-white hover:bg-yellow-500"}`}
-                        onClick={handleSave}
-                        disabled={savedJob}
-                    >
-                        {savedJob ? "Saved" : "Save Job"}
-                    </button>
+                    {savedJob ? (
+                        <button
+                            className="px-4 py-2 rounded font-semibold bg-yellow-500 text-white hover:bg-yellow-600"
+                            onClick={handleUnsave}
+                        >
+                            Saved &mdash; Remove
+                        </button>
+                    ) : (
+                        <button
+                            className="px-4 py-2 rounded font-semibold bg-yellow-400 text-white hover:bg-yellow-500"
+                            onClick={handleSave}
+                        >
+                            Save Job
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

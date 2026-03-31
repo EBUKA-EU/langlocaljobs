@@ -9,6 +9,14 @@ import JobsPage from "./pages/JobsPage";
 import JobDetails from "./pages/JobDetails";
 import NavBar from "./components/NavBar";
 import Footer from "./components/Footer";
+import {
+    fetchSavedJobs,
+    saveJob,
+    unsaveJob,
+    fetchAppliedJobs,
+    markApplied,
+} from "./api/jobs";
+import AdminDashboard from "./pages/AdminDashboard";
 
 const queryClient = new QueryClient();
 
@@ -17,8 +25,19 @@ function App() {
     const [appliedJobs, setAppliedJobs] = useState([]);
     const [savedJobs, setSavedJobs] = useState([]);
 
-    const handleLogin = (userData) => {
+    const handleLogin = async (userData) => {
         setUser(userData);
+        try {
+            const [savedData, appliedData] = await Promise.all([
+                fetchSavedJobs(userData.token),
+                fetchAppliedJobs(userData.token),
+            ]);
+            setSavedJobs(savedData.saved_jobs || []);
+            setAppliedJobs(appliedData.applied_jobs || []);
+        } catch {
+            setSavedJobs([]);
+            setAppliedJobs([]);
+        }
     };
 
     const handleLogout = () => {
@@ -27,19 +46,43 @@ function App() {
         setSavedJobs([]);
     };
 
-    const handleApply = (job) => {
-        setAppliedJobs((prev) =>
-            prev.some((j) => j.id === job.id) ? prev : [...prev, job],
-        );
+    const handleApply = async (job) => {
+        if (!user?.token) return;
+        try {
+            const result = await markApplied(user.token, job.id);
+            const appliedAt = result.applied_at || new Date().toISOString();
+            setAppliedJobs((prev) =>
+                prev.some((j) => j.id === job.id)
+                    ? prev
+                    : [...prev, { ...job, applied_at: appliedAt }],
+            );
+        } catch {
+            // still update locally even if request fails
+            setAppliedJobs((prev) =>
+                prev.some((j) => j.id === job.id) ? prev : [...prev, job],
+            );
+        }
     };
 
-    const handleSave = (job) => {
+    const handleSave = async (job) => {
+        if (!user?.token) return;
+        try {
+            await saveJob(user.token, job.id);
+        } catch {
+            // already saved is acceptable
+        }
         setSavedJobs((prev) =>
             prev.some((j) => j.id === job.id) ? prev : [...prev, job],
         );
     };
 
-    const handleRemoveSavedJob = (jobId) => {
+    const handleRemoveSavedJob = async (jobId) => {
+        if (!user?.token) return;
+        try {
+            await unsaveJob(user.token, jobId);
+        } catch {
+            // proceed with local removal regardless
+        }
         setSavedJobs((prev) => prev.filter((j) => j.id !== jobId));
     };
 
@@ -61,6 +104,7 @@ function App() {
                                     user={user}
                                     onApply={handleApply}
                                     onSave={handleSave}
+                                    onUnsave={handleRemoveSavedJob}
                                     appliedJobs={appliedJobs}
                                     savedJobs={savedJobs}
                                 />
@@ -71,6 +115,10 @@ function App() {
                             element={<Login onLogin={handleLogin} />}
                         />
                         <Route path="/register" element={<Register />} />
+                        <Route
+                            path="/admin"
+                            element={<AdminDashboard user={user} />}
+                        />
                         <Route
                             path="/dashboard"
                             element={

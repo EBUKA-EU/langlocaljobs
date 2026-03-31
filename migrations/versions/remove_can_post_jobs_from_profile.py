@@ -4,7 +4,7 @@ Remove can_post_jobs from Profile
 from alembic import op
 import sqlalchemy as sa
 
-revision = 'remove_can_post_jobs_from_profile'
+revision = 'rmv_can_post_from_profile'
 down_revision = 'refactor_user_profile_split'
 branch_labels = None
 depends_on = None

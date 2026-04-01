@@ -12,10 +12,14 @@ function JobsPage({ user }) {
     const [search, setSearch] = useState("");
     const [location, setLocation] = useState("");
     const [company, setCompany] = useState("");
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
     const [applied, setApplied] = useState({
         search: "",
         location: "",
         company: "",
+        date_from: "",
+        date_to: "",
     });
 
     const { data, isLoading, error } = useQuery({
@@ -31,18 +35,20 @@ function JobsPage({ user }) {
     const handleSearch = (e) => {
         e.preventDefault();
         setPage(1);
-        setApplied({ search, location, company });
+        setApplied({ search, location, company, date_from: dateFrom, date_to: dateTo });
     };
 
     const handleClear = () => {
         setSearch("");
         setLocation("");
         setCompany("");
+        setDateFrom("");
+        setDateTo("");
         setPage(1);
-        setApplied({ search: "", location: "", company: "" });
+        setApplied({ search: "", location: "", company: "", date_from: "", date_to: "" });
     };
 
-    const hasFilters = applied.search || applied.location || applied.company;
+    const hasFilters = applied.search || applied.location || applied.company || applied.date_from || applied.date_to;
 
     return (
         <div className="max-w-2xl mx-auto mt-8">
@@ -80,6 +86,22 @@ function JobsPage({ user }) {
                         placeholder="Filter by company..."
                         value={company}
                         onChange={(e) => setCompany(e.target.value)}
+                        className="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                </div>
+                <div className="flex gap-2 items-center">
+                    <label className="text-sm text-gray-600 whitespace-nowrap">Posted from:</label>
+                    <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                    <label className="text-sm text-gray-600 whitespace-nowrap">to:</label>
+                    <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
                         className="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
                 </div>
@@ -124,6 +146,15 @@ function JobsPage({ user }) {
                                             .filter(Boolean)
                                             .join(" · ")}
                                     </div>
+                                    {job.posted_at && (
+                                        <div className="text-gray-400 text-xs mt-0.5">
+                                            Added{" "}
+                                            {new Date(job.posted_at).toLocaleDateString(
+                                                undefined,
+                                                { year: "numeric", month: "short", day: "numeric" }
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 <Link
                                     to={`/jobs/${job.id}`}

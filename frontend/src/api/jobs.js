@@ -53,6 +53,8 @@ export const fetchJobs = async (
     if (filters.search) params.set("search", filters.search);
     if (filters.location) params.set("location", filters.location);
     if (filters.company) params.set("company", filters.company);
+    if (filters.date_from) params.set("date_from", filters.date_from);
+    if (filters.date_to) params.set("date_to", filters.date_to);
     const response = await fetch(`${API_BASE}/api/jobs?${params.toString()}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });

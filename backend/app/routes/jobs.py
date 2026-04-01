@@ -153,6 +153,8 @@ def list_jobs():
     search = (request.args.get("search") or "").strip()
     location = (request.args.get("location") or "").strip()
     company = (request.args.get("company") or "").strip()
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
 
     query = Job.query
     if search:
@@ -161,6 +163,18 @@ def list_jobs():
         query = query.filter(Job.location.ilike(f"%{location}%"))
     if company:
         query = query.filter(Job.company.ilike(f"%{company}%"))
+    if date_from:
+        try:
+            from datetime import datetime as dt
+            query = query.filter(Job.posted_at >= dt.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime as dt
+            query = query.filter(Job.posted_at <= dt.fromisoformat(date_to + "T23:59:59"))
+        except ValueError:
+            pass
 
     query = query.order_by(Job.posted_at.desc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)

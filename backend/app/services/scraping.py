@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
@@ -9,9 +10,28 @@ from app.extension import db
 from app.models import Job
 
 LOGGER = logging.getLogger(__name__)
-REQUEST_HEADERS = {
+
+# Used for public JSON APIs that explicitly support programmatic access
+API_HEADERS = {
     "User-Agent": "LangLocalJobsBot/1.0 (+https://github.com/EBUKA-EU/langlocaljobs)"}
+
+# Used for HTML scraping — mimics a real browser to avoid blocks
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/123.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+}
+
+# Keep for backward compatibility
+REQUEST_HEADERS = API_HEADERS
 REQUEST_TIMEOUT_SECONDS = 20
+HTML_REQUEST_DELAY_SECONDS = 2  # polite delay between HTML page requests
 
 
 def _safe_text(value):
@@ -66,13 +86,14 @@ def _is_valid_job_payload(job_data):
 
 def _fetch_soup(url):
     response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS,
-                            headers=REQUEST_HEADERS)
+                            headers=BROWSER_HEADERS)
     response.raise_for_status()
     return BeautifulSoup(response.text, "html.parser")
 
 
 def _scrape_translatorscafe_listing(source_name, listing_url):
     """Scrape one TranslatorsCafe listing page and normalize records."""
+    time.sleep(HTML_REQUEST_DELAY_SECONDS)
     soup = _fetch_soup(listing_url)
     links = [
         link
@@ -218,20 +239,9 @@ def scrape_jobs_from_sources():
     """
     source_configs = [
         {
-            "name": "translatorscafe-selected",
-            "url": "https://www.translatorscafe.com/cafe/SearchJobs.asp?Mode=Selected",
-            "type": "html",
-        },
-        {
-            "name": "translatorscafe-interpreting",
-            "url": "https://www.translatorscafe.com/cafe/SearchJobs.asp?Mode=Search&JTS=true&JobType=8",
-            "type": "html",
-        },
-        {
             "name": "remotive-software",
             "url": "https://remotive.com/api/remote-jobs?category=software-dev",
             "type": "api",
-            "handler": "_scrape_remotive_api",
         },
         {
             "name": "arbeitnow",

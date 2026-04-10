@@ -172,7 +172,8 @@ def list_jobs():
     if date_to:
         try:
             from datetime import datetime as dt
-            query = query.filter(Job.posted_at <= dt.fromisoformat(date_to + "T23:59:59"))
+            query = query.filter(
+                Job.posted_at <= dt.fromisoformat(date_to + "T23:59:59"))
         except ValueError:
             pass
 

@@ -35,7 +35,13 @@ function JobsPage({ user }) {
     const handleSearch = (e) => {
         e.preventDefault();
         setPage(1);
-        setApplied({ search, location, company, date_from: dateFrom, date_to: dateTo });
+        setApplied({
+            search,
+            location,
+            company,
+            date_from: dateFrom,
+            date_to: dateTo,
+        });
     };
 
     const handleClear = () => {
@@ -45,10 +51,21 @@ function JobsPage({ user }) {
         setDateFrom("");
         setDateTo("");
         setPage(1);
-        setApplied({ search: "", location: "", company: "", date_from: "", date_to: "" });
+        setApplied({
+            search: "",
+            location: "",
+            company: "",
+            date_from: "",
+            date_to: "",
+        });
     };
 
-    const hasFilters = applied.search || applied.location || applied.company || applied.date_from || applied.date_to;
+    const hasFilters =
+        applied.search ||
+        applied.location ||
+        applied.company ||
+        applied.date_from ||
+        applied.date_to;
 
     return (
         <div className="max-w-2xl mx-auto mt-8">
@@ -90,14 +107,18 @@ function JobsPage({ user }) {
                     />
                 </div>
                 <div className="flex gap-2 items-center">
-                    <label className="text-sm text-gray-600 whitespace-nowrap">Posted from:</label>
+                    <label className="text-sm text-gray-600 whitespace-nowrap">
+                        Posted from:
+                    </label>
                     <input
                         type="date"
                         value={dateFrom}
                         onChange={(e) => setDateFrom(e.target.value)}
                         className="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
-                    <label className="text-sm text-gray-600 whitespace-nowrap">to:</label>
+                    <label className="text-sm text-gray-600 whitespace-nowrap">
+                        to:
+                    </label>
                     <input
                         type="date"
                         value={dateTo}
@@ -149,10 +170,13 @@ function JobsPage({ user }) {
                                     {job.posted_at && (
                                         <div className="text-gray-400 text-xs mt-0.5">
                                             Added{" "}
-                                            {new Date(job.posted_at).toLocaleDateString(
-                                                undefined,
-                                                { year: "numeric", month: "short", day: "numeric" }
-                                            )}
+                                            {new Date(
+                                                job.posted_at,
+                                            ).toLocaleDateString(undefined, {
+                                                year: "numeric",
+                                                month: "short",
+                                                day: "numeric",
+                                            })}
                                         </div>
                                     )}
                                 </div>

@@ -177,7 +177,7 @@ def list_jobs():
         except ValueError:
             pass
 
-    query = query.order_by(Job.posted_at.desc())
+    query = query.order_by(Job.posted_at.asc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     jobs = pagination.items
     total = pagination.total

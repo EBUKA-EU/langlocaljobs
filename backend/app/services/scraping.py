@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import datetime
-from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -48,10 +48,6 @@ def _canonicalize_job_url(url):
     path = parsed.path.rstrip("/")
     query_items = parse_qsl(parsed.query, keep_blank_values=True)
 
-    # TranslatorsCafe links include a volatile "Jobs" parameter that changes often.
-    if path.lower().endswith("selectedjob.asp"):
-        query_items = [(k, v) for k, v in query_items if k.lower() == "job"]
-
     normalized_query = urlencode(sorted(query_items))
     return urlunparse(
         (
@@ -91,58 +87,11 @@ def _fetch_soup(url):
     return BeautifulSoup(response.text, "html.parser")
 
 
-def _scrape_translatorscafe_listing(source_name, listing_url):
-    """Scrape one TranslatorsCafe listing page and normalize records."""
-    time.sleep(HTML_REQUEST_DELAY_SECONDS)
-    soup = _fetch_soup(listing_url)
-    links = [
-        link
-        for link in soup.find_all("a", href=True)
-        if "SelectedJob.asp?Job=" in link["href"]
-    ]
-
-    jobs = []
-    skipped_invalid = 0
-    for link in links:
-        raw_title = _safe_text(link.get_text(" ", strip=True))
-        full_url = _canonicalize_job_url(
-            urljoin("https://www.translatorscafe.com", link["href"]))
-
-        if "|" in raw_title:
-            title_part, company_part = raw_title.split("|", 1)
-            title = _safe_text(title_part)
-            company = _safe_text(company_part)
-        else:
-            title = raw_title
-            company = "Unknown"
-
-        job = {
-            "title": title,
-            "company": company or "Unknown",
-            "location": "Global",
-            "description": f"Imported from {source_name}",
-            "url": full_url,
-            "posted_at": datetime.utcnow(),
-        }
-
-        if not _is_valid_job_payload(job):
-            skipped_invalid += 1
-            continue
-
-        jobs.append(job)
-
-    return {
-        "source": source_name,
-        "fetched": len(links),
-        "valid": len(jobs),
-        "invalid": skipped_invalid,
-        "error": None,
-        "jobs": jobs,
-    }
-
-
+# --- Source: Arbeitnow (https://www.arbeitnow.com) ---
+# Free public job board API. Returns JSON with a "data" array.
+# Endpoint: https://www.arbeitnow.com/api/job-board-api
 def _scrape_arbeitnow_api(source_name, api_url):
-    """Scrape jobs from Arbeitnow free public API."""
+    """Fetch jobs from the Arbeitnow public JSON API."""
     try:
         response = requests.get(
             api_url, timeout=REQUEST_TIMEOUT_SECONDS, headers=REQUEST_HEADERS)
@@ -184,8 +133,11 @@ def _scrape_arbeitnow_api(source_name, api_url):
     }
 
 
+# --- Source: The Muse (https://www.themuse.com) ---
+# Free public jobs API. Returns JSON with a "results" array.
+# Endpoint: https://www.themuse.com/api/public/jobs
 def _scrape_themuse_api(source_name, api_url):
-    """Scrape jobs from The Muse free public API."""
+    """Fetch jobs from The Muse public JSON API."""
     try:
         response = requests.get(
             api_url, timeout=REQUEST_TIMEOUT_SECONDS, headers=REQUEST_HEADERS)
@@ -232,22 +184,97 @@ def _scrape_themuse_api(source_name, api_url):
     }
 
 
+# --- Source: RealPython Fake Jobs (https://realpython.github.io/fake-jobs/) ---
+# A static GitHub Pages site with 100 fake job listings, designed for scraping practice.
+# Each job is in a <div class="card"> with title (h2.title), company (h3.company),
+# location (p.location), date (<time datetime="...">) and an "Apply" link.
+def _scrape_realpython_fake_jobs(source_name, listing_url):
+    """HTML-scrape job cards from the RealPython fake-jobs practice site."""
+    try:
+        time.sleep(HTML_REQUEST_DELAY_SECONDS)
+        soup = _fetch_soup(listing_url)
+    except Exception as exc:
+        return [], {
+            "source": source_name,
+            "fetched": 0,
+            "valid": 0,
+            "invalid": 0,
+            "error": str(exc),
+        }
+
+    cards = soup.find_all("div", class_="card")
+    jobs = []
+    skipped_invalid = 0
+
+    for card in cards:
+        title_tag = card.find("h2", class_="title")
+        company_tag = card.find("h3", class_="company")
+        location_tag = card.find("p", class_="location")
+        time_tag = card.find("time")
+        apply_link = None
+        for a in card.find_all("a", href=True):
+            if a.get_text(strip=True).lower() == "apply":
+                apply_link = a["href"]
+                break
+
+        posted_at = datetime.utcnow()
+        if time_tag and time_tag.get("datetime"):
+            try:
+                posted_at = datetime.strptime(time_tag["datetime"], "%Y-%m-%d")
+            except ValueError:
+                pass
+
+        description = _safe_text(title_tag.get_text(
+            " ", strip=True)) if title_tag else ""
+        job_payload = {
+            "title": _safe_text(title_tag.get_text(" ", strip=True)) if title_tag else "",
+            "company": _safe_text(company_tag.get_text(" ", strip=True)) if company_tag else "",
+            "location": _safe_text(location_tag.get_text(" ", strip=True)) if location_tag else "",
+            "description": description or "Visit job link for full description.",
+            "url": _canonicalize_job_url(apply_link or listing_url),
+            "posted_at": posted_at,
+        }
+
+        if not _is_valid_job_payload(job_payload):
+            skipped_invalid += 1
+            continue
+        jobs.append(job_payload)
+
+    return jobs, {
+        "source": source_name,
+        "fetched": len(cards),
+        "valid": len(jobs),
+        "invalid": skipped_invalid,
+        "error": None,
+    }
+
+
 def scrape_jobs_from_sources():
     """
-    Scrape jobs from multiple HTML sources.
-    Continues on source-level failures and returns per-source metrics.
+    Scrape jobs from all configured sources.
+    Each source is attempted independently — failures in one do not block others.
+    Returns (all_jobs, source_stats) where source_stats has per-source metrics.
     """
     source_configs = [
+        # realpython.github.io/fake-jobs — static GitHub Pages site with 100 fake listings
+        {
+            "name": "realpython-fake-jobs",
+            "url": "https://realpython.github.io/fake-jobs/",
+            "type": "realpython",
+        },
+        # remotive.com — remote jobs API, filtered to software-dev category
         {
             "name": "remotive-software",
             "url": "https://remotive.com/api/remote-jobs?category=software-dev",
             "type": "api",
         },
+        # arbeitnow.com — free public job board API
         {
             "name": "arbeitnow",
             "url": "https://www.arbeitnow.com/api/job-board-api",
             "type": "arbeitnow",
         },
+        # themuse.com — free public jobs API
         {
             "name": "themuse",
             "url": "https://www.themuse.com/api/public/jobs?page=1&per_page=100",
@@ -260,18 +287,10 @@ def scrape_jobs_from_sources():
 
     for config in source_configs:
         try:
-            if config["type"] == "html":
-                result = _scrape_translatorscafe_listing(config["name"], config["url"])
-                all_jobs.extend(result["jobs"])
-                source_stats.append(
-                    {
-                        "source": result["source"],
-                        "fetched": result["fetched"],
-                        "valid": result["valid"],
-                        "invalid": result["invalid"],
-                        "error": None,
-                    }
-                )
+            if config["type"] == "realpython":
+                jobs, stat = _scrape_realpython_fake_jobs(config["name"], config["url"])
+                all_jobs.extend(jobs)
+                source_stats.append(stat)
             elif config["type"] == "api":
                 jobs, stat = _scrape_remotive_api(config["name"], config["url"])
                 all_jobs.extend(jobs)
@@ -299,8 +318,11 @@ def scrape_jobs_from_sources():
     return all_jobs, source_stats
 
 
+# --- Source: Remotive (https://remotive.com) ---
+# Free public API for remote job listings. Returns JSON with a "jobs" array.
+# Endpoint: https://remotive.com/api/remote-jobs?category=<category>
 def _scrape_remotive_api(source_name, api_url):
-    """Scrape jobs from Remotive public API for software jobs."""
+    """Fetch jobs from the Remotive public JSON API."""
     try:
         response = requests.get(
             api_url, timeout=REQUEST_TIMEOUT_SECONDS, headers=REQUEST_HEADERS)
